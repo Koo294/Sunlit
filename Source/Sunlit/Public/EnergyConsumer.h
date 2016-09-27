@@ -28,6 +28,10 @@ private:
 
 	void SetActiveDirect(bool NewActive);
 
+	float EnergyLevel;
+
+	void UpdateEnergyLevel(float NewLevel);
+
 protected:
 
 	virtual void Tick(float DeltaTime) override;
@@ -57,4 +61,6 @@ public:
 	void SetActive(bool NewActive);
 
 	void SetShip(class AShip* Ship);
+
+	float GetEnergyLevel();
 };

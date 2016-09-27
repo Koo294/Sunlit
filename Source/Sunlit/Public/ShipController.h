@@ -26,6 +26,8 @@ protected:
 	void OnKShieldOn();
 	void OnKShieldOff();
 
+	void OnThrustForward(float Val);
+
 public:
 
 	virtual void BeginPlay() override;

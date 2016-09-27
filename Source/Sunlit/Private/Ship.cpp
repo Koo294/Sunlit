@@ -108,8 +108,6 @@ void AShip::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	ShipMesh->AddForce(FVector(600.f, 0.f, 0.f));
-
 	if (BatteryPercent < 1.f && BatteryEfficiency)
 	{
 		BatteryPercent += DeltaTime*BatteryEfficiency->GetFloatValue(BatteryPercent)*BatteryChargeRate / BatteryCapacity;

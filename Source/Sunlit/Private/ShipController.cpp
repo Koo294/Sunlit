@@ -9,7 +9,8 @@ void AShipController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	//InputComponent->BindAxis("CameraZoom", this, &ACTBallController::OnCameraZoom);
+	InputComponent->BindAxis("ThrustForward", this, &AShipController::OnThrustForward);
+
 	InputComponent->BindAction("EShield", IE_Pressed, this, &AShipController::OnEShieldOn);
 	InputComponent->BindAction("EShield", IE_Released, this, &AShipController::OnEShieldOff);
 	InputComponent->BindAction("KShield", IE_Pressed, this, &AShipController::OnKShieldOn);
@@ -34,6 +35,10 @@ void AShipController::OnKShieldOn()
 void AShipController::OnKShieldOff()
 {
 	ControlledShip->SetShieldKActive(false);
+}
+
+void AShipController::OnThrustForward(float Val)
+{
 }
 
 

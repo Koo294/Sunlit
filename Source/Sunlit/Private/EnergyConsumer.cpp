@@ -50,7 +50,13 @@ void UEnergyConsumer::SetActiveDirect(bool NewActive)
 {
 	IsActive = NewActive;
 	IsRamping = false;
-	OnUpdateEnergyLevel.Broadcast(IsActive ? 1.f : 0.f);
+	UpdateEnergyLevel(IsActive ? 1.f : 0.f);
+}
+
+void UEnergyConsumer::UpdateEnergyLevel(float NewLevel)
+{
+	EnergyLevel = NewLevel;
+	OnUpdateEnergyLevel.Broadcast(NewLevel);
 }
 
 void UEnergyConsumer::Tick(float DeltaTime)
@@ -83,7 +89,7 @@ void UEnergyConsumer::Tick(float DeltaTime)
 			else
 			{
 				EnergySource->ConsumeBattery(UsingCurve->GetFloatValue(MinTime + CurveTime)*ActiveUsage*DeltaTime);
-				OnUpdateEnergyLevel.Broadcast(UsingCurve->GetFloatValue(MinTime + CurveTime));
+				UpdateEnergyLevel(UsingCurve->GetFloatValue(MinTime + CurveTime));
 			}
 		}
 	}
@@ -104,4 +110,9 @@ TStatId UEnergyConsumer::GetStatId() const
 void UEnergyConsumer::SetShip(AShip * Ship)
 {
 	EnergySource = Ship;
+}
+
+float UEnergyConsumer::GetEnergyLevel()
+{
+	return EnergyLevel;
 }
