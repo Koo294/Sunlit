@@ -14,12 +14,15 @@ AShip::AShip()
 
 	ShipMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ShipMesh"));
 	RootComponent = ShipMesh;
+	ShipMesh->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
 
 	ShieldEMainMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShieldEMainMesh"));
-	ShieldEMainMesh->AttachToComponent(RootComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
+	ShieldEMainMesh->AttachToComponent(RootComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false), "hull");
+	ShieldEMainMesh->SetRelativeRotation(FRotator(0.f, 0.f, -90.f));
 
 	ShieldKMainMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShieldKMainMesh"));
-	ShieldKMainMesh->AttachToComponent(RootComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
+	ShieldKMainMesh->AttachToComponent(RootComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false), "hull");
+	ShieldKMainMesh->SetRelativeRotation(FRotator(0.f, 0.f, -90.f));
 
 }
 
@@ -46,6 +49,9 @@ float AShip::GetBatteryCharge()
 void AShip::BeginPlay()
 {
 	Super::BeginPlay();
+
+	ShipMesh->SetSimulatePhysics(true);
+	ShipMesh->SetEnableGravity(false);
 
 	//Construct loadout
 
@@ -101,6 +107,8 @@ void AShip::BeginPlay()
 void AShip::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	ShipMesh->AddForce(FVector(600.f, 0.f, 0.f));
 
 	if (BatteryPercent < 1.f && BatteryEfficiency)
 	{
