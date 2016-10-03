@@ -46,6 +46,14 @@ private:
 	UPROPERTY()
 	TArray<class UThruster*> ThrustersDown;
 
+	bool MainEnginesActive;
+
+	FVector RotationInput;
+
+	FVector ThrustInput;
+
+	float CurrentThrustSum(const TArray<class UThruster*>& Thrusters);
+
 	//ENERGY
 	
 	float BatteryPercent;
@@ -58,6 +66,10 @@ private:
 
 	UMaterialInstanceDynamic* ShieldKMainMat;
 
+	//CAMERA
+
+	FVector CameraThrustAverage;
+
 protected:
 
 	UPROPERTY(VisibleAnywhere, Category = Components)
@@ -68,6 +80,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = Components)
 	class UStaticMeshComponent* ShieldKMainMesh;
+
+	UPROPERTY(VisibleAnywhere, Category = Components)
+	class UCameraComponent* Camera;
 
 public:	
 	// Sets default values for this actor's properties
@@ -107,6 +122,42 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
 	TArray<TSubclassOf<class UThruster>> ThrustersDownType;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float MaxForwardSpeed;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float BrakeThrust;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float BrakeFalloff;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float MaxYawSpeed;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float MaxPitchSpeed;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float MaxRollSpeed;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float YawAccel;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float PitchAccel;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float RollAccel;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float YawSensitivity;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float PitchSensitivity;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float RollSensitivity;
+
 	//ENERGY
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Battery)
@@ -122,6 +173,20 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Materials)
 	TArray<int32> MaterialIndexMain;
+
+	//CAMERA
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Camera)
+	FVector CameraOffset;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Camera)
+	float CameraRotateMult;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Camera)
+	float CameraThrustMult;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Camera)
+	float CameraAverageEx;
 
 	void ConsumeBattery(float ConsumeCharge);
 
@@ -147,6 +212,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "TEST")
 	void SetShieldKActive(bool Active);
 
+	void SetMainEnginesActive(bool Active);
+
+	bool GetMainEnginesActive();
+
+	void ThrustForward(float Val);
+
+	void RotateYaw(float Val);
+
+	void RotatePitch(float Val);
+
+	void RotateRoll(float Val);
+
 	UFUNCTION()
 	void OnWeaponEUpdateEnergyLevel(float EnergyLevel);
 
@@ -158,4 +235,7 @@ public:
 
 	UFUNCTION()
 	void OnShieldKUpdateEnergyLevel(float EnergyLevel);
+
+	UFUNCTION()
+	void OnMainEnginesUpdateEnergyLevel(float EnergyLevel);
 };

@@ -25,8 +25,12 @@ protected:
 	void OnEShieldOff();
 	void OnKShieldOn();
 	void OnKShieldOff();
+	void OnMainEngineToggle();
 
 	void OnThrustForward(float Val);
+	void OnRotateYaw(float Val);
+	void OnRotatePitch(float Val);
+	void OnRotateRoll(float Val);
 
 public:
 

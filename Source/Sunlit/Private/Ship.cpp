@@ -3,6 +3,7 @@
 #include "Sunlit.h"
 #include "Weapon.h"
 #include "Shield.h"
+#include "Thruster.h"
 #include "Ship.h"
 
 
@@ -24,6 +25,23 @@ AShip::AShip()
 	ShieldKMainMesh->AttachToComponent(RootComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false), "hull");
 	ShieldKMainMesh->SetRelativeRotation(FRotator(0.f, 0.f, -90.f));
 
+	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
+	Camera->AttachToComponent(RootComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false), "hull");
+	Camera->SetRelativeRotation(FRotator(0.f, 0.f, -90.f));
+
+	MaxYawSpeed = 90.f;
+	MaxPitchSpeed = 90.f;
+	MaxRollSpeed = 90.f;
+	YawAccel = 90.f;
+	PitchAccel = 90.f;
+	RollAccel = 90.f;
+	YawSensitivity = 2.f;
+	PitchSensitivity = 2.f;
+	RollSensitivity = 1.f;
+
+	MaxForwardSpeed = 500.f;
+	BrakeThrust = 10000.f;
+	BrakeFalloff = 100.f;
 }
 
 void AShip::OnConstruction(const FTransform& Transform)
@@ -80,6 +98,21 @@ void AShip::BeginPlay()
 		ShieldKMain->OnUpdateEnergyLevel.AddDynamic(this, &AShip::OnShieldKUpdateEnergyLevel);
 	}
 
+	//Construct thrusters
+
+	for (int32 i = 0; i < ThrustersForwardType.Num(); i++)
+	{
+		ThrustersForward.Add(NewObject<UThruster>(this, ThrustersForwardType[i]));
+		ThrustersForward[i]->SetShip(this);
+		if (i == 0)
+			ThrustersForward[i]->OnUpdateEnergyLevel.AddDynamic(this, &AShip::OnMainEnginesUpdateEnergyLevel);
+	}
+	for (int32 i = 0; i < ThrustersBackwardType.Num(); i++)
+	{
+		ThrustersBackward.Add(NewObject<UThruster>(this, ThrustersBackwardType[i]));
+		ThrustersBackward[i]->SetShip(this);
+	}
+
 	//Dynamic mats
 
 	TArray<UMaterialInterface*> ShipMaterials = ShipMesh->GetMaterials();
@@ -106,6 +139,181 @@ void AShip::BeginPlay()
 // Called every frame
 void AShip::Tick(float DeltaTime)
 {
+	//ROTATION
+	FVector CurrentRotation = GetActorRotation().UnrotateVector(ShipMesh->GetPhysicsAngularVelocity("hull"));
+	FVector NewRotation = CurrentRotation;
+	
+	//YAW
+	if (CurrentRotation.Z > RotationInput.Z*MaxYawSpeed)
+	{
+		NewRotation.Z = CurrentRotation.Z - (CurrentRotation.Z < 0 ? FMath::Abs(RotationInput.Z) : 1)*YawAccel*DeltaTime;
+		if (NewRotation.Z < RotationInput.Z*MaxYawSpeed)
+		{
+			NewRotation.Z = RotationInput.Z*MaxYawSpeed;
+		}
+	}
+	else if (CurrentRotation.Z < RotationInput.Z*MaxYawSpeed)
+	{
+		NewRotation.Z = CurrentRotation.Z + (CurrentRotation.Z > 0 ? FMath::Abs(RotationInput.Z) : 1)*YawAccel*DeltaTime;
+		if (NewRotation.Z > RotationInput.Z*MaxYawSpeed)
+		{
+			NewRotation.Z = RotationInput.Z*MaxYawSpeed;
+		}
+	}
+
+	//PITCH
+	if (CurrentRotation.Y > RotationInput.Y*MaxPitchSpeed)
+	{
+		NewRotation.Y = CurrentRotation.Y - (CurrentRotation.Y < 0 ? FMath::Abs(RotationInput.Y) : 1)*PitchAccel*DeltaTime;
+		if (NewRotation.Y < RotationInput.Y*MaxPitchSpeed)
+		{
+			NewRotation.Y = RotationInput.Y*MaxPitchSpeed;
+		}
+	}
+	else if (CurrentRotation.Y < RotationInput.Y*MaxPitchSpeed)
+	{
+		NewRotation.Y = CurrentRotation.Y + (CurrentRotation.Y > 0 ? FMath::Abs(RotationInput.Y) : 1)*PitchAccel*DeltaTime;
+		if (NewRotation.Y > RotationInput.Y*MaxPitchSpeed)
+		{
+			NewRotation.Y = RotationInput.Y*MaxPitchSpeed;
+		}
+	}
+
+
+	//Roll
+	if (CurrentRotation.X > RotationInput.X*MaxRollSpeed)
+	{
+		NewRotation.X = CurrentRotation.X - (CurrentRotation.X < 0 ? FMath::Abs(RotationInput.X) : 1)*RollAccel*DeltaTime;
+		if (NewRotation.X < RotationInput.X*MaxRollSpeed)
+		{
+			NewRotation.X = RotationInput.X*MaxRollSpeed;
+		}
+	}
+	else if (CurrentRotation.X < RotationInput.X*MaxRollSpeed)
+	{
+		NewRotation.X = CurrentRotation.X + (CurrentRotation.X > 0 ? FMath::Abs(RotationInput.X) : 1)*RollAccel*DeltaTime;
+		if (NewRotation.X > RotationInput.X*MaxRollSpeed)
+		{
+			NewRotation.X = RotationInput.X*MaxRollSpeed;
+		}
+	}
+	ShipMesh->SetPhysicsAngularVelocity(GetActorRotation().RotateVector(NewRotation), false, "hull");
+
+	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, FString::Printf(TEXT("InputRotation: %f yaw, %f pitch, %f roll"), RotationInput.Z, RotationInput.Y, RotationInput.X));
+	
+	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("NewRotation: %f yaw, %f pitch, %f roll"), NewRotation.Z, NewRotation.Y, NewRotation.X));
+
+
+	//THRUST
+
+	FVector ShipVelocity = GetActorRotation().UnrotateVector(ShipMesh->GetPhysicsLinearVelocity("hull"));
+	FVector ThrustForce = FVector::ZeroVector;
+
+	//X
+
+	if (ShipVelocity.X > ThrustInput.X*MaxForwardSpeed)
+	{
+		ThrustForce.X = -CurrentThrustSum(ThrustersBackward);
+		if (ShipVelocity.X > 0 && ThrustForce.X > -BrakeThrust)
+		{
+			ThrustForce.X = -BrakeThrust;
+		}
+		if (ShipVelocity.X < ThrustInput.X*MaxForwardSpeed + BrakeFalloff)
+		{
+			ThrustForce.X *= (ShipVelocity.X - ThrustInput.X*MaxForwardSpeed) / BrakeFalloff;
+		}
+	}
+	else if (ShipVelocity.X < ThrustInput.X*MaxForwardSpeed)
+	{
+		ThrustForce.X = CurrentThrustSum(ThrustersForward);
+		if (ShipVelocity.X < 0 && ThrustForce.X < BrakeThrust)
+		{
+			ThrustForce.X = BrakeThrust;
+		}
+		if (ShipVelocity.X > ThrustInput.X*MaxForwardSpeed - BrakeFalloff)
+		{
+			ThrustForce.X *= (ThrustInput.X*MaxForwardSpeed - ShipVelocity.X) / BrakeFalloff;
+		}
+	}
+
+	//Y
+	if (ShipVelocity.Y > ThrustInput.Y*MaxForwardSpeed)
+	{
+		ThrustForce.Y = -CurrentThrustSum(ThrustersRight);
+		if (ShipVelocity.Y > 0 && ThrustForce.Y > -BrakeThrust)
+		{
+			ThrustForce.Y = -BrakeThrust;
+		}
+		if (ShipVelocity.Y < ThrustInput.Y*MaxForwardSpeed + BrakeFalloff)
+		{
+			ThrustForce.Y *= (ShipVelocity.Y - ThrustInput.Y*MaxForwardSpeed) / BrakeFalloff;
+		}
+	}
+	else if (ShipVelocity.Y < ThrustInput.Y*MaxForwardSpeed)
+	{
+		ThrustForce.Y = CurrentThrustSum(ThrustersLeft);
+		if (ShipVelocity.Y < 0 && ThrustForce.Y < BrakeThrust)
+		{
+			ThrustForce.Y = BrakeThrust;
+		}
+		if (ShipVelocity.Y > ThrustInput.Y*MaxForwardSpeed - BrakeFalloff)
+		{
+			ThrustForce.Y *= (ThrustInput.Y*MaxForwardSpeed - ShipVelocity.Y) / BrakeFalloff;
+		}
+	}
+
+	//Z
+	if (ShipVelocity.Z > ThrustInput.Z*MaxForwardSpeed)
+	{
+		ThrustForce.Z = -CurrentThrustSum(ThrustersDown);
+		if (ShipVelocity.Z > 0 && ThrustForce.Z > -BrakeThrust)
+		{
+			ThrustForce.Z = -BrakeThrust;
+		}
+		if (ShipVelocity.Z < ThrustInput.Z*MaxForwardSpeed + BrakeFalloff)
+		{
+			ThrustForce.Z *= (ShipVelocity.Z - ThrustInput.Z*MaxForwardSpeed) / BrakeFalloff;
+		}
+	}
+	else if (ShipVelocity.Z < ThrustInput.Z*MaxForwardSpeed)
+	{
+		ThrustForce.Z = CurrentThrustSum(ThrustersUp);
+		if (ShipVelocity.Z < 0 && ThrustForce.Z < BrakeThrust)
+		{
+			ThrustForce.Z = BrakeThrust;
+		}
+		if (ShipVelocity.Z > ThrustInput.Z*MaxForwardSpeed - BrakeFalloff)
+		{
+			ThrustForce.Z *= (ThrustInput.Z*MaxForwardSpeed - ShipVelocity.Z) / BrakeFalloff;
+		}
+	}
+
+	ShipMesh->AddForce(GetActorRotation().RotateVector(ThrustForce), "hull");
+
+	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, FString::Printf(TEXT("InputThrust: %f X, %f Y, %f Z"), ThrustInput.X, ThrustInput.Y, ThrustInput.Z));
+
+	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("ShipVelocity: %f X, %f Y, %f Z"), ShipVelocity.X, ShipVelocity.Y, ShipVelocity.Z));
+
+	//CAMERA
+
+	FRotator CameraRot = FRotator(NewRotation.Z * CameraRotateMult, NewRotation.Y * CameraRotateMult, NewRotation.X * CameraRotateMult);
+
+	CameraRot = CameraRot.Add(0.f, 0.f, -90.f);
+
+	FVector CameraOff = CameraOffset;
+
+	CameraOff -= ThrustForce*CameraThrustMult;
+
+	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, FString::Printf(TEXT("CameraOffset: %f X, %f Y, %f Z"), CameraOff.X, CameraOff.Y, CameraOff.Z));
+
+	CameraThrustAverage += DeltaTime*CameraAverageEx * (CameraOff - CameraThrustAverage);
+
+	CameraOff = CameraThrustAverage;
+
+	CameraOff = CameraRot.RotateVector(CameraOff);
+
+	Camera->SetRelativeLocationAndRotation(CameraOff, CameraRot);
+
 	Super::Tick(DeltaTime);
 
 	if (BatteryPercent < 1.f && BatteryEfficiency)
@@ -114,6 +322,19 @@ void AShip::Tick(float DeltaTime)
 		if (BatteryPercent > 1.f)
 			BatteryPercent = 1.f;
 	}
+}
+
+float AShip::CurrentThrustSum(const TArray<class UThruster*>& Thrusters)
+{
+	float ThrustSum = 0;
+	for (int32 i = 0; i < Thrusters.Num(); i++)
+	{
+		float ThrusterLevel = Thrusters[i]->GetEnergyLevel();
+		ThrusterLevel = (ThrusterLevel - Thrusters[i]->ThrustThreshold) / (1 - Thrusters[i]->ThrustThreshold);
+		ThrusterLevel = FMath::Max(ThrusterLevel, 0.f);
+		ThrustSum += ThrusterLevel*Thrusters[i]->ThrustMax;
+	}
+	return ThrustSum;
 }
 
 void AShip::SetWeaponEActive(bool Active)
@@ -139,6 +360,38 @@ void AShip::SetShieldKActive(bool Active)
 {
 	if (ShieldKMain)
 		ShieldKMain->SetActive(Active);
+}
+
+void AShip::SetMainEnginesActive(bool Active)
+{
+	for (int32 i = 0; i < ThrustersForward.Num(); i++)
+		ThrustersForward[i]->SetActive(Active);
+	MainEnginesActive = Active;
+}
+
+bool AShip::GetMainEnginesActive()
+{
+	return MainEnginesActive;
+}
+
+void AShip::ThrustForward(float Val)
+{
+	ThrustInput.X = Val;
+}
+
+void AShip::RotateYaw(float Val)
+{
+	RotationInput.Z = FMath::Clamp(-Val / YawSensitivity, -1.f, 1.f);
+}
+
+void AShip::RotatePitch(float Val)
+{
+	RotationInput.Y = FMath::Clamp(Val / PitchSensitivity, -1.f, 1.f);
+}
+
+void AShip::RotateRoll(float Val)
+{
+	RotationInput.X = FMath::Clamp(-Val / RollSensitivity, -1.f, 1.f);
 }
 
 void AShip::OnWeaponEUpdateEnergyLevel(float EnergyLevel)
@@ -181,4 +434,10 @@ void AShip::OnShieldKUpdateEnergyLevel(float EnergyLevel)
 
 		ShieldKMainMat->SetScalarParameterValue("Power", ShieldGlowLevel);
 	}
+}
+
+void AShip::OnMainEnginesUpdateEnergyLevel(float EnergyLevel)
+{
+	for (int32 i = 0; i < MaterialsMain.Num(); i++)
+		MaterialsMain[i]->SetScalarParameterValue("MainEngineGlowLevel", EnergyLevel);
 }
