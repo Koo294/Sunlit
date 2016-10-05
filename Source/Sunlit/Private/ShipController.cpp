@@ -20,6 +20,7 @@ void AShipController::SetupInputComponent()
 	InputComponent->BindAction("KShield", IE_Released, this, &AShipController::OnKShieldOff);
 
 	InputComponent->BindAction("MainEngineToggle", IE_Pressed, this, &AShipController::OnMainEngineToggle);
+	InputComponent->BindAction("EngineToggle", IE_Pressed, this, &AShipController::OnEngineToggle);
 }
 
 void AShipController::OnEShieldOn()
@@ -45,6 +46,11 @@ void AShipController::OnKShieldOff()
 void AShipController::OnMainEngineToggle()
 {
 	ControlledShip->SetMainEnginesActive(!ControlledShip->GetMainEnginesActive());
+}
+
+void AShipController::OnEngineToggle()
+{
+	ControlledShip->SetEnginesActive(!ControlledShip->GetEnginesActive());
 }
 
 void AShipController::OnThrustForward(float Val)

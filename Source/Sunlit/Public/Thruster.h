@@ -13,6 +13,8 @@ class SUNLIT_API UThruster : public UEnergyConsumer
 {
 	GENERATED_BODY()
 
+	UParticleSystemComponent* ThrusterParticles;
+
 public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Thruster)
@@ -23,4 +25,11 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Thruster)
 	float ThrustMaxEnergyUse;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Thruster)
+	UParticleSystem* ThrusterParticlesType;
+
+	void SetParticleComponent(UParticleSystemComponent* ParticleComponent);
+
+	void Thrust(float Val);
 };

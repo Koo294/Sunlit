@@ -5,6 +5,18 @@
 #include "GameFramework/Actor.h"
 #include "Ship.generated.h"
 
+USTRUCT()
+struct FThrusterInfo
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Thruster)
+	FName ThrusterSocketName;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Thruster)
+	TSubclassOf<class UThruster> ThrusterClass;
+};
+
 UCLASS()
 class SUNLIT_API AShip : public AActor
 {
@@ -46,7 +58,17 @@ private:
 	UPROPERTY()
 	TArray<class UThruster*> ThrustersDown;
 
+	bool ConstructThrusters(TArray<class UThruster*>& Thrusters, TArray<FThrusterInfo>& ThrustersType);
+
+	void SetThrustAmount(TArray<class UThruster*>& Thrusters, float Amount);
+
+	void CalculateRotationAxis(float &AxisRotation, float &AxisInput, float &AxisNewRotation, float &AxisAccel, float &AxisMaxRotation, float DeltaTime);
+
+	void CalculateThrustAxis(float &AxisVelocity, float &AxisInput, float &AxisThrust, TArray<class UThruster*>& PosThrusters, TArray<class UThruster*>& NegThrusters);
+
 	bool MainEnginesActive;
+
+	bool EnginesActive;
 
 	FVector RotationInput;
 
@@ -105,22 +127,22 @@ public:
 	//MOVEMENT TYPES
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
-	TArray<TSubclassOf<class UThruster>> ThrustersForwardType;
+	TArray<FThrusterInfo> ThrustersForwardType;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
-	TArray<TSubclassOf<class UThruster>> ThrustersBackwardType;
+	TArray<FThrusterInfo> ThrustersBackwardType;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
-	TArray<TSubclassOf<class UThruster>> ThrustersLeftType;
+	TArray<FThrusterInfo> ThrustersLeftType;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
-	TArray<TSubclassOf<class UThruster>> ThrustersRightType;
+	TArray<FThrusterInfo> ThrustersRightType;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
-	TArray<TSubclassOf<class UThruster>> ThrustersUpType;
+	TArray<FThrusterInfo> ThrustersUpType;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
-	TArray<TSubclassOf<class UThruster>> ThrustersDownType;
+	TArray<FThrusterInfo> ThrustersDownType;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
 	float MaxForwardSpeed;
@@ -214,7 +236,11 @@ public:
 
 	void SetMainEnginesActive(bool Active);
 
+	void SetEnginesActive(bool Active);
+
 	bool GetMainEnginesActive();
+
+	bool GetEnginesActive();
 
 	void ThrustForward(float Val);
 
@@ -238,4 +264,7 @@ public:
 
 	UFUNCTION()
 	void OnMainEnginesUpdateEnergyLevel(float EnergyLevel);
+
+	UFUNCTION()
+	void OnEnginesUpdateEnergyLevel(float EnergyLevel);
 };

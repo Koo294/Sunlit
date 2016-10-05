@@ -26,6 +26,7 @@ protected:
 	void OnKShieldOn();
 	void OnKShieldOff();
 	void OnMainEngineToggle();
+	void OnEngineToggle();
 
 	void OnThrustForward(float Val);
 	void OnRotateYaw(float Val);

@@ -100,18 +100,17 @@ void AShip::BeginPlay()
 
 	//Construct thrusters
 
-	for (int32 i = 0; i < ThrustersForwardType.Num(); i++)
-	{
-		ThrustersForward.Add(NewObject<UThruster>(this, ThrustersForwardType[i]));
-		ThrustersForward[i]->SetShip(this);
-		if (i == 0)
-			ThrustersForward[i]->OnUpdateEnergyLevel.AddDynamic(this, &AShip::OnMainEnginesUpdateEnergyLevel);
-	}
-	for (int32 i = 0; i < ThrustersBackwardType.Num(); i++)
-	{
-		ThrustersBackward.Add(NewObject<UThruster>(this, ThrustersBackwardType[i]));
-		ThrustersBackward[i]->SetShip(this);
-	}
+	if (ConstructThrusters(ThrustersForward, ThrustersForwardType))
+		ThrustersForward[0]->OnUpdateEnergyLevel.AddDynamic(this, &AShip::OnMainEnginesUpdateEnergyLevel);
+
+	ConstructThrusters(ThrustersBackward, ThrustersBackwardType);
+
+	if (ConstructThrusters(ThrustersLeft, ThrustersLeftType))
+		ThrustersLeft[0]->OnUpdateEnergyLevel.AddDynamic(this, &AShip::OnEnginesUpdateEnergyLevel);
+
+	ConstructThrusters(ThrustersRight, ThrustersRightType);
+	ConstructThrusters(ThrustersUp, ThrustersUpType);
+	ConstructThrusters(ThrustersDown, ThrustersDownType);
 
 	//Dynamic mats
 
@@ -136,6 +135,106 @@ void AShip::BeginPlay()
 	}
 }
 
+bool AShip::ConstructThrusters(TArray<class UThruster*>& Thrusters, TArray<FThrusterInfo>& ThrustersType)
+{
+	for (int32 i = 0; i < ThrustersType.Num(); i++)
+	{
+		Thrusters.Add(NewObject<UThruster>(this, ThrustersType[i].ThrusterClass));
+		Thrusters[i]->SetShip(this);
+
+		UParticleSystemComponent* ThrusterParticles = NewObject<UParticleSystemComponent>(this);
+		ThrusterParticles->RegisterComponentWithWorld(GetWorld());
+		AddOwnedComponent(ThrusterParticles);
+		ThrusterParticles->AttachToComponent(ShipMesh, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, false), ThrustersType[i].ThrusterSocketName);
+		ThrusterParticles->Template = Thrusters[i]->ThrusterParticlesType;
+		ThrusterParticles->SetActive(true, true);
+		Thrusters[i]->SetParticleComponent(ThrusterParticles);
+	}
+	return (Thrusters.Num() > 0);
+}
+
+void AShip::SetThrustAmount(TArray<class UThruster*>& Thrusters, float Amount)
+{
+	for (int32 i = 0; i < Thrusters.Num(); i++)
+	{
+		Thrusters[i]->Thrust(Amount);
+	}
+}
+
+void AShip::CalculateRotationAxis(float & AxisRotation, float & AxisInput, float & AxisNewRotation, float &AxisAccel, float & AxisMaxRotation, float DeltaTime)
+{
+	if (AxisRotation > AxisInput*AxisMaxRotation)
+	{
+		AxisNewRotation = AxisRotation - (AxisRotation < 0 ? FMath::Abs(AxisInput) : 1)*AxisAccel*DeltaTime;
+		if (AxisNewRotation < AxisInput*AxisMaxRotation)
+		{
+			AxisNewRotation = AxisInput*AxisMaxRotation;
+		}
+	}
+	else if (AxisRotation < AxisInput*AxisMaxRotation)
+	{
+		AxisNewRotation = AxisRotation + (AxisRotation > 0 ? FMath::Abs(AxisInput) : 1)*AxisAccel*DeltaTime;
+		if (AxisNewRotation > AxisInput*AxisMaxRotation)
+		{
+			AxisNewRotation = AxisInput*AxisMaxRotation;
+		}
+	}
+}
+
+void AShip::CalculateThrustAxis(float & AxisVelocity, float & AxisInput, float & AxisThrust, TArray<class UThruster*>& PosThrusters, TArray<class UThruster*>& NegThrusters)
+{
+	if (AxisVelocity > AxisInput*MaxForwardSpeed)
+	{
+		SetThrustAmount(PosThrusters, 0.f);
+		bool UsingThrusters = false;
+
+		AxisThrust = -CurrentThrustSum(NegThrusters);
+
+		if (AxisVelocity > 0 && AxisThrust > -BrakeThrust)
+		{
+			AxisThrust = -BrakeThrust;
+			SetThrustAmount(NegThrusters, 0.f);
+		}
+		else UsingThrusters = true;
+
+		if (AxisVelocity < AxisInput*MaxForwardSpeed + BrakeFalloff)
+		{
+			float BrakePercent = (AxisVelocity - AxisInput*MaxForwardSpeed) / BrakeFalloff;
+			AxisThrust *= BrakePercent;
+			if (UsingThrusters) SetThrustAmount(NegThrusters, BrakePercent);
+		}
+		else if (UsingThrusters) SetThrustAmount(NegThrusters, 1.f);
+
+	}
+	else if (AxisVelocity < AxisInput*MaxForwardSpeed)
+	{
+		SetThrustAmount(NegThrusters, 0.f);
+		bool UsingThrusters = false;
+
+		AxisThrust = CurrentThrustSum(PosThrusters);
+
+		if (AxisVelocity < 0 && AxisThrust < BrakeThrust)
+		{
+			AxisThrust = BrakeThrust;
+			SetThrustAmount(PosThrusters, 0.f);
+		}
+		else UsingThrusters = true;
+
+		if (AxisVelocity > AxisInput*MaxForwardSpeed - BrakeFalloff)
+		{
+			float BrakePercent = (AxisInput*MaxForwardSpeed - AxisVelocity) / BrakeFalloff;
+			AxisThrust *= BrakePercent;
+			if (UsingThrusters) SetThrustAmount(PosThrusters, BrakePercent);
+		}
+		else if (UsingThrusters) SetThrustAmount(PosThrusters, 1.f);
+	}
+	else
+	{
+		SetThrustAmount(PosThrusters, 0.f);
+		SetThrustAmount(NegThrusters, 0.f);
+	}
+}
+
 // Called every frame
 void AShip::Tick(float DeltaTime)
 {
@@ -144,59 +243,11 @@ void AShip::Tick(float DeltaTime)
 	FVector NewRotation = CurrentRotation;
 	
 	//YAW
-	if (CurrentRotation.Z > RotationInput.Z*MaxYawSpeed)
-	{
-		NewRotation.Z = CurrentRotation.Z - (CurrentRotation.Z < 0 ? FMath::Abs(RotationInput.Z) : 1)*YawAccel*DeltaTime;
-		if (NewRotation.Z < RotationInput.Z*MaxYawSpeed)
-		{
-			NewRotation.Z = RotationInput.Z*MaxYawSpeed;
-		}
-	}
-	else if (CurrentRotation.Z < RotationInput.Z*MaxYawSpeed)
-	{
-		NewRotation.Z = CurrentRotation.Z + (CurrentRotation.Z > 0 ? FMath::Abs(RotationInput.Z) : 1)*YawAccel*DeltaTime;
-		if (NewRotation.Z > RotationInput.Z*MaxYawSpeed)
-		{
-			NewRotation.Z = RotationInput.Z*MaxYawSpeed;
-		}
-	}
 
-	//PITCH
-	if (CurrentRotation.Y > RotationInput.Y*MaxPitchSpeed)
-	{
-		NewRotation.Y = CurrentRotation.Y - (CurrentRotation.Y < 0 ? FMath::Abs(RotationInput.Y) : 1)*PitchAccel*DeltaTime;
-		if (NewRotation.Y < RotationInput.Y*MaxPitchSpeed)
-		{
-			NewRotation.Y = RotationInput.Y*MaxPitchSpeed;
-		}
-	}
-	else if (CurrentRotation.Y < RotationInput.Y*MaxPitchSpeed)
-	{
-		NewRotation.Y = CurrentRotation.Y + (CurrentRotation.Y > 0 ? FMath::Abs(RotationInput.Y) : 1)*PitchAccel*DeltaTime;
-		if (NewRotation.Y > RotationInput.Y*MaxPitchSpeed)
-		{
-			NewRotation.Y = RotationInput.Y*MaxPitchSpeed;
-		}
-	}
+	CalculateRotationAxis(CurrentRotation.Z, RotationInput.Z, NewRotation.Z, YawAccel, MaxYawSpeed, DeltaTime);
+	CalculateRotationAxis(CurrentRotation.Y, RotationInput.Y, NewRotation.Y, PitchAccel, MaxPitchSpeed, DeltaTime);
+	CalculateRotationAxis(CurrentRotation.X, RotationInput.X, NewRotation.X, RollAccel, MaxRollSpeed, DeltaTime);
 
-
-	//Roll
-	if (CurrentRotation.X > RotationInput.X*MaxRollSpeed)
-	{
-		NewRotation.X = CurrentRotation.X - (CurrentRotation.X < 0 ? FMath::Abs(RotationInput.X) : 1)*RollAccel*DeltaTime;
-		if (NewRotation.X < RotationInput.X*MaxRollSpeed)
-		{
-			NewRotation.X = RotationInput.X*MaxRollSpeed;
-		}
-	}
-	else if (CurrentRotation.X < RotationInput.X*MaxRollSpeed)
-	{
-		NewRotation.X = CurrentRotation.X + (CurrentRotation.X > 0 ? FMath::Abs(RotationInput.X) : 1)*RollAccel*DeltaTime;
-		if (NewRotation.X > RotationInput.X*MaxRollSpeed)
-		{
-			NewRotation.X = RotationInput.X*MaxRollSpeed;
-		}
-	}
 	ShipMesh->SetPhysicsAngularVelocity(GetActorRotation().RotateVector(NewRotation), false, "hull");
 
 	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, FString::Printf(TEXT("InputRotation: %f yaw, %f pitch, %f roll"), RotationInput.Z, RotationInput.Y, RotationInput.X));
@@ -211,88 +262,19 @@ void AShip::Tick(float DeltaTime)
 
 	//X
 
-	if (ShipVelocity.X > ThrustInput.X*MaxForwardSpeed)
-	{
-		ThrustForce.X = -CurrentThrustSum(ThrustersBackward);
-		if (ShipVelocity.X > 0 && ThrustForce.X > -BrakeThrust)
-		{
-			ThrustForce.X = -BrakeThrust;
-		}
-		if (ShipVelocity.X < ThrustInput.X*MaxForwardSpeed + BrakeFalloff)
-		{
-			ThrustForce.X *= (ShipVelocity.X - ThrustInput.X*MaxForwardSpeed) / BrakeFalloff;
-		}
-	}
-	else if (ShipVelocity.X < ThrustInput.X*MaxForwardSpeed)
-	{
-		ThrustForce.X = CurrentThrustSum(ThrustersForward);
-		if (ShipVelocity.X < 0 && ThrustForce.X < BrakeThrust)
-		{
-			ThrustForce.X = BrakeThrust;
-		}
-		if (ShipVelocity.X > ThrustInput.X*MaxForwardSpeed - BrakeFalloff)
-		{
-			ThrustForce.X *= (ThrustInput.X*MaxForwardSpeed - ShipVelocity.X) / BrakeFalloff;
-		}
-	}
+	CalculateThrustAxis(ShipVelocity.X, ThrustInput.X, ThrustForce.X, ThrustersForward, ThrustersBackward);
+	CalculateThrustAxis(ShipVelocity.Y, ThrustInput.Y, ThrustForce.Y, ThrustersLeft, ThrustersRight);
+	CalculateThrustAxis(ShipVelocity.Z, ThrustInput.Z, ThrustForce.Z, ThrustersDown, ThrustersUp);
 
-	//Y
-	if (ShipVelocity.Y > ThrustInput.Y*MaxForwardSpeed)
-	{
-		ThrustForce.Y = -CurrentThrustSum(ThrustersRight);
-		if (ShipVelocity.Y > 0 && ThrustForce.Y > -BrakeThrust)
-		{
-			ThrustForce.Y = -BrakeThrust;
-		}
-		if (ShipVelocity.Y < ThrustInput.Y*MaxForwardSpeed + BrakeFalloff)
-		{
-			ThrustForce.Y *= (ShipVelocity.Y - ThrustInput.Y*MaxForwardSpeed) / BrakeFalloff;
-		}
-	}
-	else if (ShipVelocity.Y < ThrustInput.Y*MaxForwardSpeed)
-	{
-		ThrustForce.Y = CurrentThrustSum(ThrustersLeft);
-		if (ShipVelocity.Y < 0 && ThrustForce.Y < BrakeThrust)
-		{
-			ThrustForce.Y = BrakeThrust;
-		}
-		if (ShipVelocity.Y > ThrustInput.Y*MaxForwardSpeed - BrakeFalloff)
-		{
-			ThrustForce.Y *= (ThrustInput.Y*MaxForwardSpeed - ShipVelocity.Y) / BrakeFalloff;
-		}
-	}
-
-	//Z
-	if (ShipVelocity.Z > ThrustInput.Z*MaxForwardSpeed)
-	{
-		ThrustForce.Z = -CurrentThrustSum(ThrustersDown);
-		if (ShipVelocity.Z > 0 && ThrustForce.Z > -BrakeThrust)
-		{
-			ThrustForce.Z = -BrakeThrust;
-		}
-		if (ShipVelocity.Z < ThrustInput.Z*MaxForwardSpeed + BrakeFalloff)
-		{
-			ThrustForce.Z *= (ShipVelocity.Z - ThrustInput.Z*MaxForwardSpeed) / BrakeFalloff;
-		}
-	}
-	else if (ShipVelocity.Z < ThrustInput.Z*MaxForwardSpeed)
-	{
-		ThrustForce.Z = CurrentThrustSum(ThrustersUp);
-		if (ShipVelocity.Z < 0 && ThrustForce.Z < BrakeThrust)
-		{
-			ThrustForce.Z = BrakeThrust;
-		}
-		if (ShipVelocity.Z > ThrustInput.Z*MaxForwardSpeed - BrakeFalloff)
-		{
-			ThrustForce.Z *= (ThrustInput.Z*MaxForwardSpeed - ShipVelocity.Z) / BrakeFalloff;
-		}
-	}
 
 	ShipMesh->AddForce(GetActorRotation().RotateVector(ThrustForce), "hull");
 
 	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, FString::Printf(TEXT("InputThrust: %f X, %f Y, %f Z"), ThrustInput.X, ThrustInput.Y, ThrustInput.Z));
 
 	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("ShipVelocity: %f X, %f Y, %f Z"), ShipVelocity.X, ShipVelocity.Y, ShipVelocity.Z));
+
+	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, FString::Printf(TEXT("ThrustForce: %f X, %f Y, %f Z"), ThrustForce.X, ThrustForce.Y, ThrustForce.Z));
+
 
 	//CAMERA
 
@@ -302,7 +284,7 @@ void AShip::Tick(float DeltaTime)
 
 	FVector CameraOff = CameraOffset;
 
-	CameraOff -= ThrustForce*CameraThrustMult;
+	CameraOff += FVector(-ThrustForce.X, ThrustForce.Y, ThrustForce.Z)*CameraThrustMult;
 
 	//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, FString::Printf(TEXT("CameraOffset: %f X, %f Y, %f Z"), CameraOff.X, CameraOff.Y, CameraOff.Z));
 
@@ -366,12 +348,38 @@ void AShip::SetMainEnginesActive(bool Active)
 {
 	for (int32 i = 0; i < ThrustersForward.Num(); i++)
 		ThrustersForward[i]->SetActive(Active);
+
+	for (int32 i = 0; i < ThrustersBackward.Num(); i++)
+		ThrustersBackward[i]->SetActive(Active);
+
 	MainEnginesActive = Active;
+}
+
+void AShip::SetEnginesActive(bool Active)
+{
+	for (int32 i = 0; i < ThrustersLeft.Num(); i++)
+		ThrustersLeft[i]->SetActive(Active);
+
+	for (int32 i = 0; i < ThrustersRight.Num(); i++)
+		ThrustersRight[i]->SetActive(Active);
+
+	for (int32 i = 0; i < ThrustersUp.Num(); i++)
+		ThrustersUp[i]->SetActive(Active);
+
+	for (int32 i = 0; i < ThrustersDown.Num(); i++)
+		ThrustersDown[i]->SetActive(Active);
+
+	EnginesActive = Active;
 }
 
 bool AShip::GetMainEnginesActive()
 {
 	return MainEnginesActive;
+}
+
+bool AShip::GetEnginesActive()
+{
+	return EnginesActive;
 }
 
 void AShip::ThrustForward(float Val)
@@ -440,4 +448,10 @@ void AShip::OnMainEnginesUpdateEnergyLevel(float EnergyLevel)
 {
 	for (int32 i = 0; i < MaterialsMain.Num(); i++)
 		MaterialsMain[i]->SetScalarParameterValue("MainEngineGlowLevel", EnergyLevel);
+}
+
+void AShip::OnEnginesUpdateEnergyLevel(float EnergyLevel)
+{
+	for (int32 i = 0; i < MaterialsMain.Num(); i++)
+		MaterialsMain[i]->SetScalarParameterValue("EngineGlowLevel", EnergyLevel);
 }
