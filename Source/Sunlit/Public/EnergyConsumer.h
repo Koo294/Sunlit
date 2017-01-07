@@ -22,9 +22,9 @@ private:
 
 	bool IsRamping;
 
-	float CurveTime;
+	bool Reactive;
 
-	class AShip* EnergySource;
+	float CurveTime;
 
 	void SetActiveDirect(bool NewActive);
 
@@ -33,6 +33,8 @@ private:
 	void UpdateEnergyLevel(float NewLevel);
 
 protected:
+
+	class AShip* EnergySource;
 
 	virtual void Tick(float DeltaTime) override;
 
@@ -46,10 +48,13 @@ public:
 	UCurveFloat* ActivateCurve;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = EnergyUse)
+	UCurveFloat* ReactivateCurve;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = EnergyUse)
 	float ActiveUsage;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = EnergyUse)
-	float ActiveRampThreshold;
+	float ReactiveThreshold;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = EnergyUse)
 	UCurveFloat* DeactivateCurve;
@@ -63,4 +68,6 @@ public:
 	void SetShip(class AShip* Ship);
 
 	float GetEnergyLevel();
+
+	bool GetActive();
 };

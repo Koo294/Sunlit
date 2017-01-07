@@ -13,7 +13,15 @@ class SUNLIT_API UShipTargetWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	
-	
-	
-	
+public:
+
+	UFUNCTION(BlueprintImplementableEvent, Category = TargetInfo)
+	void SetArrowDir(float Dir);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = TargetInfo)
+	void SetTargetInView(bool InView);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = TargetInfo)
+	void SetTargetName(const FString& Name);
+
 };

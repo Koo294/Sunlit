@@ -8,7 +8,8 @@ UEnergyConsumer::UEnergyConsumer()
 {
 	IsActive = false;
 	IsRamping = false;
-	ActiveRampThreshold = 1.f;
+	Reactive = false;
+	ReactiveThreshold = 1.f;
 }
 
 void UEnergyConsumer::SetActive(bool NewActive)
@@ -29,10 +30,8 @@ void UEnergyConsumer::SetActive(bool NewActive)
 				float PrevRange = MaxTimePrev - MinTimePrev;
 				float NewRange = MaxTimeNew - MinTimeNew;
 
-				if (IsActive)
-					NewRange *= ActiveRampThreshold;
-				else
-					PrevRange *= ActiveRampThreshold;
+				Reactive = IsActive && (CurveTime / PrevRange < ReactiveThreshold);
+				//GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Threshold needs to be above %f"), CurveTime / PrevRange));
 
 				CurveTime = NewRange - (NewRange * (CurveTime / PrevRange));
 			}
@@ -40,6 +39,7 @@ void UEnergyConsumer::SetActive(bool NewActive)
 		}
 		else
 		{
+			Reactive = false;
 			CurveTime = 0.f;
 			IsRamping = true;
 		}
@@ -67,7 +67,7 @@ void UEnergyConsumer::Tick(float DeltaTime)
 
 		float MinTime, MaxTime;
 
-		UCurveFloat* UsingCurve = IsActive ? ActivateCurve : DeactivateCurve;
+		UCurveFloat* UsingCurve = IsActive ? (Reactive ? ReactivateCurve : ActivateCurve) : DeactivateCurve;
 
 		if (!UsingCurve)
 		{
@@ -115,4 +115,9 @@ void UEnergyConsumer::SetShip(AShip * Ship)
 float UEnergyConsumer::GetEnergyLevel()
 {
 	return EnergyLevel;
+}
+
+bool UEnergyConsumer::GetActive()
+{
+	return IsActive;
 }

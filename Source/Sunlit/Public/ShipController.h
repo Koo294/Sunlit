@@ -15,7 +15,13 @@ class SUNLIT_API AShipController : public APlayerController
 	
 private:
 
+	bool CombatControls;
+
 	class AShip* ControlledShip;
+	class UShipHUDWidget* ShipHUD;
+
+	uint8 EWeaponTriggers;
+	uint8 KWeaponTriggers;
 
 protected:
 
@@ -25,8 +31,17 @@ protected:
 	void OnEShieldOff();
 	void OnKShieldOn();
 	void OnKShieldOff();
+	void OnEWeaponOn();
+	void OnEWeaponOff();
+	void OnKWeaponOn();
+	void OnKWeaponOff();
+	void OnEWeaponTriggerOn();
+	void OnEWeaponTriggerOff();
+	void OnKWeaponTriggerOn();
+	void OnKWeaponTriggerOff();
 	void OnMainEngineToggle();
 	void OnEngineToggle();
+	void OnCombatModeToggle();
 
 	void OnThrustForward(float Val);
 	void OnRotateYaw(float Val);
@@ -35,9 +50,18 @@ protected:
 
 public:
 
+	AShipController();
+
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Ship)
 	TSubclassOf<class AShip> ShipType;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Ship)
+	TSubclassOf<class UShipHUDWidget> ShipHUDType;
+
+	void SetCombatControls(bool UseCombatControls);
+
+	class UShipHUDWidget* GetHUD();
 
 };

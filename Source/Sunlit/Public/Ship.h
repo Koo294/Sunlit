@@ -60,11 +60,13 @@ private:
 
 	bool ConstructThrusters(TArray<class UThruster*>& Thrusters, TArray<FThrusterInfo>& ThrustersType);
 
-	void SetThrustAmount(TArray<class UThruster*>& Thrusters, float Amount);
+	void SetThrustAmount(TArray<class UThruster*>& Thrusters, float Amount, float DeltaTime);
 
 	void CalculateRotationAxis(float &AxisRotation, float &AxisInput, float &AxisNewRotation, float &AxisAccel, float &AxisMaxRotation, float DeltaTime);
 
-	void CalculateThrustAxis(float &AxisVelocity, float &AxisInput, float &AxisThrust, TArray<class UThruster*>& PosThrusters, TArray<class UThruster*>& NegThrusters);
+	void CalculateRotationToDeltaAxis(float &AxisRotation, float AxisDelta, float &AxisNewRotation, float &AxisAccel, float &AxisMaxRotation, float DeltaTime);
+
+	void CalculateThrustAxis(float &AxisVelocity, float &AxisInput, float &AxisThrust, TArray<class UThruster*>& PosThrusters, TArray<class UThruster*>& NegThrusters, float DeltaTime);
 
 	bool MainEnginesActive;
 
@@ -80,6 +82,22 @@ private:
 	
 	float BatteryPercent;
 
+	float BatteryDrainBuffer;
+
+	bool onShutdown;
+
+	float RestartThreshold;
+
+	TArray<class UEnergyConsumer*> ActiveShutdown;
+
+	void ShutdownConsumer(class UEnergyConsumer* Consumer);
+
+	void SystemShutdown();
+
+	void SystemRestart();
+
+	void SetConsumerActive(class UEnergyConsumer* Consumer, bool Active);
+
 	//MATERIALS
 
 	TArray<UMaterialInstanceDynamic*> MaterialsMain;
@@ -91,6 +109,18 @@ private:
 	//CAMERA
 
 	FVector CameraThrustAverage;
+
+	//FLIGHT
+
+	bool CombatMode;
+
+	int32 CombatTarget;
+
+	bool DecoupledMode;
+
+	TArray<AShip*> TargetShips;
+
+	class AShipController* PlayerShipController;
 
 protected:
 
@@ -104,11 +134,24 @@ protected:
 	class UStaticMeshComponent* ShieldKMainMesh;
 
 	UPROPERTY(VisibleAnywhere, Category = Components)
+	class USphereComponent* TargetingRange;
+
+	UPROPERTY(VisibleAnywhere, Category = Components)
 	class UCameraComponent* Camera;
 
+	UFUNCTION()
+	void OnTargetingRangeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult & SweepResult);
+
+	UFUNCTION()
+	void OnTargetingRangeEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
 public:	
+
 	// Sets default values for this actor's properties
 	AShip();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Ship)
+	FString ShipName;
 
 	//LOADOUT TYPES
 
@@ -123,6 +166,12 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Loadout)
 	TSubclassOf<class UShield> ShieldKMainType;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Loadout)
+	FName WeaponESocket;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Loadout)
+	FName WeaponKSocket;
 
 	//MOVEMENT TYPES
 
@@ -180,6 +229,18 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
 	float RollSensitivity;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float ForwardThrustSensitivity;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float RightThrustSensitivity;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float UpThrustSensitivity;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Movement)
+	float DeltaAccelFalloff;
+
 	//ENERGY
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Battery)
@@ -222,16 +283,18 @@ public:
 	// Called every frame
 	virtual void Tick( float DeltaSeconds ) override;
 
-	UFUNCTION(BlueprintCallable, Category = "TEST")
 	void SetWeaponEActive(bool Active);
 
-	UFUNCTION(BlueprintCallable, Category = "TEST")
 	void SetWeaponKActive(bool Active);
 
-	UFUNCTION(BlueprintCallable, Category = "TEST")
+	void SetWeaponETriggered(bool Triggered);
+
+	void SetWeaponKTriggered(bool Triggered);
+
+	void GetWeaponFireParameters(UWeapon * Weapon, FTransform & Transform, FVector & InitialVelocity, UWorld *& World);
+
 	void SetShieldEActive(bool Active);
 
-	UFUNCTION(BlueprintCallable, Category = "TEST")
 	void SetShieldKActive(bool Active);
 
 	void SetMainEnginesActive(bool Active);
@@ -244,11 +307,21 @@ public:
 
 	void ThrustForward(float Val);
 
+	void ThrustRight(float Val);
+
+	void ThrustUp(float Val);
+
 	void RotateYaw(float Val);
 
 	void RotatePitch(float Val);
 
 	void RotateRoll(float Val);
+
+	bool SetCombatMode(bool ToCombat);
+
+	bool GetCombatMode();
+
+	void SetPlayerShipController(class AShipController* Controller);
 
 	UFUNCTION()
 	void OnWeaponEUpdateEnergyLevel(float EnergyLevel);
@@ -267,4 +340,7 @@ public:
 
 	UFUNCTION()
 	void OnEnginesUpdateEnergyLevel(float EnergyLevel);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = debug)
+	bool debugunit;
 };

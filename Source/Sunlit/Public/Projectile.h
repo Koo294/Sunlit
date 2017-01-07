@@ -9,6 +9,16 @@ UCLASS()
 class SUNLIT_API AProjectile : public AActor
 {
 	GENERATED_BODY()
+
+private:
+
+	FVector Velocity;
+
+protected:
+
+
+	UPROPERTY(VisibleAnywhere, Category = Components)
+	class UStaticMeshComponent* ProjectileMesh;
 	
 public:	
 	// Sets default values for this actor's properties
@@ -20,6 +30,15 @@ public:
 	// Called every frame
 	virtual void Tick( float DeltaSeconds ) override;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Projectile)
+	float Acceleration;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Projectile)
+	float InitialSpeed;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = Projectile)
+	float Size;
+
 	
-	
+	void Fire(FVector InitialVelocity, FRotator FireDirection, float Dispersion);
 };

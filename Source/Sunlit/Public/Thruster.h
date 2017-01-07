@@ -31,5 +31,5 @@ public:
 
 	void SetParticleComponent(UParticleSystemComponent* ParticleComponent);
 
-	void Thrust(float Val);
+	void Thrust(float Val, float DeltaTime);
 };
